@@ -64,12 +64,12 @@ The annotation capabilities are easily accessible through the annotation toolbar
 
 The following features are planned for future releases:
 
-- Annotation storage backup in the cloud (Google Drive and iCloud probably).
+- Storage backup in the cloud (Google Drive and iCloud probably).
 - Underline and strikeout text.
 - Drawing tools (freehand, lines, shapes).
 - Text comments and sticky notes.
 - Movable and minimizable annotation bar.
-- Add more functionalities to the settings page, such as keyboard shortcut customization, annotation transfer between PDF files, and selective removal.
+- Add more functionalities to the settings page, such as annotation transfer between PDF files and selective removal or keyboard shortcut customization.
 
 ## Implementation Questions
 
@@ -90,6 +90,4 @@ For bug reports and feature suggestions, please open an issue on GitHub. Feel fr
 
 ## Disclaimer
 
-This project is not affiliated with, supported, or endorsed by Google. Nonetheless, by installing this extension, you agree to the Google Terms of Service and Privacy Policy at https://www.google.com/intl/en/policies/.
-
-
+This project is not affiliated with, supported, or endorsed by Google.
