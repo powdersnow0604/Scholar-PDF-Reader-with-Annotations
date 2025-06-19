@@ -575,7 +575,7 @@ class ColorPickerManager {
                     this.activateTool('erase');
                     break;
                     
-                case 'c':
+                case 'n':
                     // Toggle comment mode
                     this.activateTool('comment');
                     break;
@@ -2239,7 +2239,7 @@ function applyAnnotationsToPage(pageElement, highlightGroups) {
             if (node) {
                 highlightNode(node, nodeInfo.text, group.color || currentColor, group.id);
             } else {
-                // console.warn('Node not found for annotation:', nodeInfo);
+                //console.warn('Node not found for annotation:', nodeInfo);
             }
         });
     });
@@ -2247,6 +2247,9 @@ function applyAnnotationsToPage(pageElement, highlightGroups) {
 
 function findNodeInPage(textContainer, xpath, text) {
     try {
+        // console.log("textContainer", textContainer);
+        // console.log("xpath", xpath);
+        // console.log("text", text);
         const xpathResult = document.evaluate(xpath, textContainer, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
         const node = xpathResult.singleNodeValue;
         if (node && node.textContent.includes(text)) {
@@ -2290,17 +2293,86 @@ function getTextOffset(node) {
     return offset;
 }
 
-function highlightNode(node, text, color, groupId) {
-    const range = document.createRange();
-    const textNode = node.firstChild;
-    if (!textNode) {
-        console.warn('No text node found in:', node);
-        return null;
+// function highlightNode(node, text, color, groupId) {
+//     const range = document.createRange();
+//     //const textNode = node.firstChild; 
+//     const textNode = getFirstTextNode(node);
+//     console.log("node text", node.textContent);
+//     if (!textNode) {
+//         console.warn('No text node found in:', node);
+//         return null;
+//     }
+//     const startOffset = textNode.textContent.indexOf(text);
+//     if (startOffset !== -1 && (startOffset + text.length) <= textNode.length) {
+//         range.setStart(textNode, startOffset);
+//         range.setEnd(textNode, startOffset + text.length);
+//         const highlightSpan = document.createElement('span');
+//         highlightSpan.className = 'pdf-highlight';
+//         highlightSpan.style.backgroundColor = color;
+//         highlightSpan.dataset.groupId = groupId;
+//         try {
+//             range.surroundContents(highlightSpan);
+//             return highlightSpan;
+//         } catch (e) {
+//             console.error('Error highlighting node:', e);
+//             return null;
+//         }
+//     } else {
+//         console.warn('Text not found or offset out of bounds in node:', {text, node, startOffset, textNodeLength: textNode.length});
+//         console.log(textNode.textContent);
+//         return null;
+//     }
+// }
+
+function getFirstTextNode(node) {
+    if (!node) return null;
+    if (node.nodeType === Node.TEXT_NODE) return node;
+    for (let child of node.childNodes) {
+        if (child.nodeType === Node.TEXT_NODE) return child;
     }
-    const startOffset = textNode.textContent.indexOf(text);
-    if (startOffset !== -1) {
-        range.setStart(textNode, startOffset);
-        range.setEnd(textNode, startOffset + text.length);
+    return null;
+}
+
+function getAllTextNodes(container) {
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+    const nodes = [];
+    let node;
+    while (node = walker.nextNode()) {
+        nodes.push(node);
+    }
+    return nodes;
+}
+
+function highlightNode(node, text, color, groupId) {
+    const textNodes = getAllTextNodes(node);
+    const fullText = textNodes.map(n => n.textContent).join('');
+    const startIndex = fullText.indexOf(text);
+    if (startIndex === -1) {
+        console.warn('Highlight text not found in container');
+        return;
+    }
+    const endIndex = startIndex + text.length;
+
+    // Find start and end nodes/offsets
+    let currentLength = 0, startNode, startOffset, endNode, endOffset;
+    for (let node of textNodes) {
+        let nextLength = currentLength + node.textContent.length;
+        if (!startNode && startIndex < nextLength) {
+            startNode = node;
+            startOffset = startIndex - currentLength;
+        }
+        if (!endNode && endIndex <= nextLength) {
+            endNode = node;
+            endOffset = endIndex - currentLength;
+            break;
+        }
+        currentLength = nextLength;
+    }
+
+    if (startNode && endNode) {
+        const range = document.createRange();
+        range.setStart(startNode, startOffset);
+        range.setEnd(endNode, endOffset);
         const highlightSpan = document.createElement('span');
         highlightSpan.className = 'pdf-highlight';
         highlightSpan.style.backgroundColor = color;
@@ -2309,12 +2381,10 @@ function highlightNode(node, text, color, groupId) {
             range.surroundContents(highlightSpan);
             return highlightSpan;
         } catch (e) {
-            console.error('Error highlighting node:', e);
-            return null;
+            console.error('Error highlighting across nodes:', e);
         }
     } else {
-        // console.warn('Text not found in node:', text);
-        return null;
+        console.warn('Could not determine start/end nodes for highlight');
     }
 }
 
