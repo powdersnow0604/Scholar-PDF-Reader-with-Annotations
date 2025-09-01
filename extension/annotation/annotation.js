@@ -555,12 +555,12 @@ class ColorPickerManager {
             
             // Handle different shortcuts
             switch(e.key.toLowerCase()) {
-                case 'h':
+                case 'r':
                     // Activate/deactivate highlight tool
                     this.activateTool('highlight');
                     break;
                     
-                case 'd':
+                case 'a':
                     // Activate/deactivate draw tool (not implemented)
                     this.activateTool('draw');
                     break;
@@ -575,7 +575,7 @@ class ColorPickerManager {
                     this.activateTool('erase');
                     break;
                     
-                case 'n':
+                case 's':
                     // Toggle comment mode
                     this.activateTool('comment');
                     break;
@@ -1140,6 +1140,7 @@ class ColorPickerManager {
             span.addEventListener('click', () => this.showCommentDisplay(commentId));
             span.addEventListener('mouseenter', () => this.showCommentPreview(commentId, span));
             span.addEventListener('mouseleave', () => this.hideCommentPreview());
+            console.log('range:', range);
 
             range.surroundContents(span);
         } catch (error) {
@@ -1203,16 +1204,20 @@ class ColorPickerManager {
         `;
 
         // Position popup near the comment
-        const commentElement = document.querySelector(`[data-comment-id="${comment.id}"]`);
-        if (commentElement) {
-            const rect = commentElement.getBoundingClientRect();
-            popup.style.left = (rect.left + rect.width / 2 - 160) + 'px';
-            popup.style.top = (rect.bottom + 10) + 'px';
-        } else {
-            popup.style.left = '50%';
-            popup.style.top = '50%';
-            popup.style.transform = 'translate(-50%, -50%)';
-        }
+        // const commentElement = document.querySelector(`[data-comment-id="${comment.id}"]`);
+        // if (commentElement) {
+        //     const rect = commentElement.getBoundingClientRect();
+        //     popup.style.left = (rect.left + rect.width / 2 - 160) + 'px';
+        //     popup.style.top = (rect.bottom + 10) + 'px';
+        // } else {
+        //     popup.style.left = '50%';
+        //     popup.style.top = '50%';
+        //     popup.style.transform = 'translate(-50%, -50%)';
+        // }
+
+        popup.style.left = '50%';
+        popup.style.top = '50%';
+        popup.style.transform = 'translate(-50%, -50%)';
 
         document.body.appendChild(popup);
         activeCommentPopup = popup;
@@ -1304,16 +1309,20 @@ class ColorPickerManager {
         `;
 
         // Position popup near the comment
-        const commentElement = document.querySelector(`[data-comment-id="${comment.id}"]`);
-        if (commentElement) {
-            const rect = commentElement.getBoundingClientRect();
-            popup.style.left = (rect.left + rect.width / 2 - 160) + 'px';
-            popup.style.top = (rect.bottom + 10) + 'px';
-        } else {
-            popup.style.left = '50%';
-            popup.style.top = '50%';
-            popup.style.transform = 'translate(-50%, -50%)';
-        }
+        // const commentElement = document.querySelector(`[data-comment-id="${comment.id}"]`);
+        // if (commentElement) {
+        //     const rect = commentElement.getBoundingClientRect();
+        //     popup.style.left = (rect.left + rect.width / 2 - 160) + 'px';
+        //     popup.style.top = (rect.bottom + 10) + 'px';
+        // } else {
+        //     popup.style.left = '50%';
+        //     popup.style.top = '50%';
+        //     popup.style.transform = 'translate(-50%, -50%)';
+        // }
+
+        popup.style.left = '50%';
+        popup.style.top = '50%';
+        popup.style.transform = 'translate(-50%, -50%)';
 
         document.body.appendChild(popup);
         activeCommentPopup = popup;
@@ -1608,6 +1617,10 @@ class ColorPickerManager {
                     endNode = result.endNode;
                     selection.startOffset = result.startOffset;
                     selection.endOffset = result.endOffset;
+                    console.log('startNode:', startNode);
+                    console.log('endNode:', endNode);
+                    console.log('startOffset:', selection.startOffset);
+                    console.log('endOffset:', selection.endOffset);
                 } else {
                     console.log('Text-based approach also failed for comment:', comment.id);
                     console.log('Available text in container:', textContainer.textContent.substring(0, 200) + '...');
@@ -1712,46 +1725,65 @@ class ColorPickerManager {
                     // Check if the target text spans multiple nodes
                     let combinedText = startText;
                     let endNodeIndex = i;
-                    
+                    // Keep track of where spaces were added before nextText
+                    const spaceBeforeNode = [false]; // first node never has space before
+
                     while (endNodeIndex < textNodes.length - 1 && !combinedText.includes(targetText)) {
                         endNodeIndex++;
-                        combinedText += textNodes[endNodeIndex].textContent;
+                        const nextText = textNodes[endNodeIndex].textContent;
+                        // Decide if we add a space before nextText
+                        let addSpace = (nextText.length > 0 && nextText[0] !== '.' && nextText[0] !== ',');
+                        if (addSpace) {
+                            combinedText += ' ' + nextText;
+                        } else {
+                            combinedText += nextText;
+                        }
+                        spaceBeforeNode.push(addSpace);
                     }
-                    
+
                     const combinedStartIndex = combinedText.indexOf(targetText);
                     if (combinedStartIndex !== -1) {
                         console.log('Found target text spanning multiple nodes');
                         // Calculate offsets
-                        let currentLength = 0;
+                        // We need to account for the spaces that were added when mapping combinedText index to node offsets
+                        let currentLength = 0; // length in combinedText as we traverse nodes
+                        let currentRawLength = 0; // length in original text nodes (without spaces)
                         let startOffset = 0;
                         let endOffset = 0;
                         let actualStartNode = startNode;
                         let actualEndNode = startNode;
-                        
-                        // Find start position
+                        let foundStart = false;
+                        let foundEnd = false;
+
+                        const targetEndInCombined = combinedStartIndex + targetText.length;
+
                         for (let j = i; j <= endNodeIndex; j++) {
+                            // If a space was added before this node, account for it in combinedText
+                            if (j > i && spaceBeforeNode[j - i]) {
+                                currentLength += 1; // for the space in combinedText
+                            }
                             const nodeText = textNodes[j].textContent;
-                            if (currentLength + nodeText.length > combinedStartIndex) {
+                            const nodeTextLen = nodeText.length;
+
+                            // Find start position
+                            if (!foundStart && currentLength + nodeTextLen > combinedStartIndex) {
                                 actualStartNode = textNodes[j];
                                 startOffset = combinedStartIndex - currentLength;
-                                break;
+                                foundStart = true;
                             }
-                            currentLength += nodeText.length;
-                        }
-                        
-                        // Find end position
-                        currentLength = 0;
-                        const targetEndIndex = combinedStartIndex + targetText.length;
-                        for (let j = i; j <= endNodeIndex; j++) {
-                            const nodeText = textNodes[j].textContent;
-                            if (currentLength + nodeText.length >= targetEndIndex) {
+
+                            // Find end position
+                            if (!foundEnd && currentLength + nodeTextLen >= targetEndInCombined) {
                                 actualEndNode = textNodes[j];
-                                endOffset = targetEndIndex - currentLength;
-                                break;
+                                endOffset = targetEndInCombined - currentLength;
+                                foundEnd = true;
                             }
-                            currentLength += nodeText.length;
+
+                            currentLength += nodeTextLen;
+
+                            if (foundStart && foundEnd) break;
                         }
-                        
+
                         return {
                             startNode: actualStartNode,
                             endNode: actualEndNode,
